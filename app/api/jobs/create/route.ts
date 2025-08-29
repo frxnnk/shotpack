@@ -98,19 +98,28 @@ export async function POST(request: NextRequest) {
 }
 
 async function processJob(jobId: string, file: File, style: StyleType, upscale: boolean, request: NextRequest, clientFingerprint: string) {
+  console.log(`🚀 [${jobId}] Starting processJob function`);
   const job = await getJob(jobId) || jobs.get(jobId)!;
   
   try {
+    console.log(`📊 [${jobId}] Setting job to running status`);
     job.status = 'running';
     job.progress = 5;
     job.updatedAt = new Date();
     await setJob(jobId, job);
     jobs.set(jobId, job);
+    console.log(`✅ [${jobId}] Job status updated to running`);
 
+    console.log(`📦 [${jobId}] Getting storage instance`);
     const storage = getStorage();
+    console.log(`✅ [${jobId}] Got storage instance`);
+
+    console.log(`📄 [${jobId}] Processing uploaded file`);
     const bytes = await file.arrayBuffer();
     let buffer = Buffer.from(bytes);
+    console.log(`✅ [${jobId}] File converted to buffer (${buffer.length} bytes)`);
 
+    console.log(`🖼️ [${jobId}] Processing image with Sharp`);
     const processedBuffer = await sharp(buffer)
       .resize(1024, 1024, { 
         fit: 'inside', 
@@ -119,18 +128,24 @@ async function processJob(jobId: string, file: File, style: StyleType, upscale: 
       })
       .jpeg({ quality: 90 })
       .toBuffer();
+    console.log(`✅ [${jobId}] Image processed with Sharp`);
     
     buffer = Buffer.from(processedBuffer);
 
+    console.log(`☁️ [${jobId}] Uploading original image to storage`);
     const originalKey = `uploads/${jobId}/original.jpg`;
     const originalUrl = await storage.uploadFile(originalKey, buffer, 'image/jpeg');
+    console.log(`✅ [${jobId}] Original uploaded: ${originalUrl}`);
     
+    console.log(`📊 [${jobId}] Updating job progress to 10%`);
     job.originalUrl = originalUrl;
     job.progress = 10;
     job.updatedAt = new Date();
     await setJob(jobId, job);
     jobs.set(jobId, job);
+    console.log(`✅ [${jobId}] Job progress updated to 10%`);
 
+    console.log(`🎨 [${jobId}] Starting image pack generation`);
     const result = await generatePackServer(jobId, {
       originalUrl,
       style,
@@ -184,35 +199,48 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
     throw new Error(`Invalid style: ${style}`);
   }
 
+  console.log(`🎯 [${jobId}] Getting image provider and storage for pack generation`);
   const provider = getImageProvider();
   const storage = getStorage();
+  console.log(`✅ [${jobId}] Got provider and storage instances`);
+  
   const images: string[] = [];
 
   try {
+    console.log(`📊 [${jobId}] Setting initial progress to 10%`);
     await onProgress?.(10);
+    console.log(`✅ [${jobId}] Initial progress set`);
 
     // Smaller batch size for serverless reliability
     const batchSize = 1; // Process one at a time to avoid memory/timeout issues
     const totalImages = 6;
     
+    console.log(`📝 [${jobId}] Building variation prompts for ${totalImages} images`);
     // Build unique prompts for each of the 6 images
     const basePrompt = styleInfo.prompt;
     const prompts = buildPrompts(style, basePrompt);
+    console.log(`✅ [${jobId}] Built ${prompts.length} variation prompts`);
     
     logger.info(jobId, 'Built variation prompts', { count: prompts.length, style });
 
+    console.log(`🔄 [${jobId}] Starting batch processing (batch size: ${batchSize})`);
     // Process images in batches, but use unique prompts for each
     for (let i = 0; i < totalImages; i += batchSize) {
+      console.log(`📦 [${jobId}] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(totalImages/batchSize)}`);
+      
       const batchPromises: Promise<void>[] = [];
       const batchEnd = Math.min(i + batchSize, totalImages);
+      console.log(`🎯 [${jobId}] Batch will process images ${i + 1} to ${batchEnd}`);
 
       for (let idx = i; idx < batchEnd; idx++) {
         const imageIndex = idx + 1;
         const promptForThisImage = prompts[idx];
         
+        console.log(`🎨 [${jobId}] Starting image ${imageIndex} generation`);
         logger.info(jobId, `Image ${imageIndex} using variation prompt ${idx + 1}`);
         
         const startTime = Date.now();
+        console.log(`⏰ [${jobId}] Image ${imageIndex} generation started at ${new Date().toISOString()}`);
         const promise = processImageServer(provider, storage, jobId, originalUrl, promptForThisImage, imageIndex)
           .then(async (imageUrl) => {
             const duration = Date.now() - startTime;
@@ -230,7 +258,9 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
         batchPromises.push(promise);
       }
 
+      console.log(`⏳ [${jobId}] Waiting for batch ${Math.floor(i/batchSize) + 1} to complete...`);
       await Promise.all(batchPromises);
+      console.log(`✅ [${jobId}] Batch ${Math.floor(i/batchSize) + 1} completed`);
       
       // Add delay between batches and check for timeout
       if (i + batchSize < totalImages) {

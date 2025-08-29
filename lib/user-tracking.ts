@@ -14,7 +14,7 @@ interface UserUsage {
   lastUsedAt: Date;
 }
 
-const USAGE_FILE = path.join(process.cwd(), 'temp-users/usage.json');
+const USAGE_FILE = path.join('/tmp', 'temp-users/usage.json');
 const FREE_PACK_LIMIT = 1;
 
 // Ensure directory exists

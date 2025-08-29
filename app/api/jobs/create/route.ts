@@ -175,6 +175,7 @@ interface GeneratePackServerRequest {
 
 async function generatePackServer(jobId: string, request: GeneratePackServerRequest) {
   const { originalUrl, style, upscale = true, onProgress } = request;
+  const processStartTime = Date.now();
   
   logger.info(jobId, 'Starting image pack generation', { originalUrl, style, upscale });
   
@@ -190,7 +191,8 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
   try {
     await onProgress?.(10);
 
-    const batchSize = 2;
+    // Smaller batch size for serverless reliability
+    const batchSize = 1; // Process one at a time to avoid memory/timeout issues
     const totalImages = 6;
     
     // Build unique prompts for each of the 6 images
@@ -210,10 +212,12 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
         
         logger.info(jobId, `Image ${imageIndex} using variation prompt ${idx + 1}`);
         
+        const startTime = Date.now();
         const promise = processImageServer(provider, storage, jobId, originalUrl, promptForThisImage, imageIndex)
           .then(async (imageUrl) => {
+            const duration = Date.now() - startTime;
             images[idx] = imageUrl;
-            logger.info(jobId, `Image ${imageIndex} generated`, { imageUrl });
+            logger.info(jobId, `Image ${imageIndex} generated in ${duration}ms`, { imageUrl });
             
             const progress = 10 + (idx + 1) * (upscale ? 35 : 70) / totalImages;
             await onProgress?.(progress, imageUrl);
@@ -228,9 +232,14 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
 
       await Promise.all(batchPromises);
       
-      // Add delay between batches (except for the last batch)
+      // Add delay between batches and check for timeout
       if (i + batchSize < totalImages) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const elapsed = Date.now() - processStartTime;
+        if (elapsed > 480000) { // 8 minutes timeout check
+          logger.warn(jobId, `Process timeout risk at ${elapsed}ms, stopping early`);
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 500)); // Shorter delay
       }
     }
 
@@ -273,7 +282,8 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
     const zipUrl = await createZipFromImagesServer(jobId, finalImages);
     
     await onProgress?.(100);
-    logger.info(jobId, 'Pack generation completed', { zipUrl, imageCount: finalImages.length });
+    const totalDuration = Date.now() - processStartTime;
+    logger.info(jobId, `Pack generation completed in ${totalDuration}ms`, { zipUrl, imageCount: finalImages.length });
 
     return {
       images: finalImages,

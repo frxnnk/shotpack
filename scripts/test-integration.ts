@@ -53,7 +53,7 @@ async function testFullIntegration() {
       console.log(`📷 Using fallback 1x1 JPEG`);
     }
     
-    const testBlob = new Blob([imageBuffer], { type: 'image/jpeg' });
+    const testBlob = new Blob([imageBuffer.buffer], { type: 'image/jpeg' });
     const testFile = new File([testBlob], 'test-product.jpg', { type: 'image/jpeg' });
     
     formData.append('file', testFile);

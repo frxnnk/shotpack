@@ -55,6 +55,9 @@ export async function POST(request: NextRequest) {
 
     const jobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
+    // Get user ID for job ownership tracking
+    const userId = getUserId(request, clientFingerprint);
+    
     const job: Job = {
       id: jobId,
       status: 'queued',
@@ -64,6 +67,7 @@ export async function POST(request: NextRequest) {
       images: [],
       createdAt: new Date(),
       updatedAt: new Date(),
+      userId, // Associate job with user
     };
 
     await setJob(jobId, job);

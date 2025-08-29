@@ -13,6 +13,7 @@ export interface Job {
   createdAt: Date;
   updatedAt: Date;
   error?: string;
+  userId?: string; // User identifier for job ownership
 }
 
 export interface CreateJobRequest {

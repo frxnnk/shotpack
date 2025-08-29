@@ -1,21 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllJobIds, getJob } from '@/lib/job-store-fs';
-import { canUserGenerate } from '@/lib/user-tracking';
+import { canUserGenerate, getUserId } from '@/lib/user-tracking';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // For now, return empty array since getAllJobIds is not implemented for R2
-    // In production, you'd want to use a database for job listing
+    // Get user ID from fingerprint to filter jobs
+    const clientFingerprint = request.headers.get('x-fingerprint');
+    const userId = getUserId(request, clientFingerprint || undefined);
+    
+    // Get all job IDs and fetch their data
     const jobIds = await getAllJobIds();
     
     const jobPromises = jobIds.map(id => getJob(id));
-    const jobs = (await Promise.all(jobPromises))
-      .filter(job => job !== undefined)
-      .sort((a, b) => new Date(b!.createdAt).getTime() - new Date(a!.createdAt).getTime());
+    const allJobs = (await Promise.all(jobPromises))
+      .filter(job => job !== undefined);
+    
+    // Filter jobs by current user only
+    const userJobs = allJobs.filter(job => job.userId === userId);
+    
+    // Sort by creation date (newest first)
+    const sortedJobs = userJobs.sort((a, b) => 
+      new Date(b!.createdAt).getTime() - new Date(a!.createdAt).getTime()
+    );
+
+    console.log(`📋 User ${userId.substring(0, 8)}... has ${userJobs.length} jobs (total in system: ${allJobs.length})`);
 
     return NextResponse.json({ 
-      jobs,
-      total: jobs.length 
+      jobs: sortedJobs,
+      total: sortedJobs.length 
     });
   } catch (error) {
     console.error('List jobs error:', error);

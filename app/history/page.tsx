@@ -4,18 +4,28 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Job } from '@/types';
 import StorageImage from '@/components/StorageImage';
+import FingerprintCollector from '@/components/FingerprintCollector';
 
 export default function HistoryPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fingerprint, setFingerprint] = useState<string>('');
 
   useEffect(() => {
-    fetchJobs();
-  }, []);
+    // Only fetch jobs once we have fingerprint
+    if (fingerprint) {
+      fetchJobs();
+    }
+  }, [fingerprint]);
 
   const fetchJobs = async () => {
     try {
-      const response = await fetch('/api/jobs/list');
+      const headers: HeadersInit = {};
+      if (fingerprint) {
+        headers['x-fingerprint'] = fingerprint;
+      }
+      
+      const response = await fetch('/api/jobs/list', { headers });
       if (response.ok) {
         const data = await response.json();
         setJobs(data.jobs);
@@ -25,6 +35,10 @@ export default function HistoryPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFingerprintCollected = (fp: string) => {
+    setFingerprint(fp);
   };
 
   const formatDate = (date: string | Date) => {
@@ -62,6 +76,7 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      <FingerprintCollector onFingerprintCollected={handleFingerprintCollected} />
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-gray-900">
           Job History
@@ -69,7 +84,14 @@ export default function HistoryPage() {
         <div className="flex gap-3">
           <button
             onClick={async () => {
-              const response = await fetch('/api/jobs/cleanup', { method: 'POST' });
+              const headers: HeadersInit = { 'Content-Type': 'application/json' };
+              if (fingerprint) {
+                headers['x-fingerprint'] = fingerprint;
+              }
+              const response = await fetch('/api/jobs/cleanup', { 
+                method: 'POST',
+                headers 
+              });
               if (response.ok) {
                 fetchJobs(); // Refresh the list
               }

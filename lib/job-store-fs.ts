@@ -2,15 +2,19 @@ import { Job } from '@/types';
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-const JOBS_DIR = join(process.cwd(), 'temp-jobs');
+// Use /tmp directory for Vercel serverless compatibility
+const JOBS_DIR = join('/tmp', 'temp-jobs');
 
-// Asegurar que el directorio existe
-if (!existsSync(JOBS_DIR)) {
-  mkdirSync(JOBS_DIR, { recursive: true });
+// Initialize directory lazily
+function ensureJobsDir() {
+  if (!existsSync(JOBS_DIR)) {
+    mkdirSync(JOBS_DIR, { recursive: true });
+  }
 }
 
 export function setJob(jobId: string, job: Job): void {
   try {
+    ensureJobsDir();
     const filePath = join(JOBS_DIR, `${jobId}.json`);
     writeFileSync(filePath, JSON.stringify(job), 'utf8');
   } catch (error) {
@@ -20,6 +24,7 @@ export function setJob(jobId: string, job: Job): void {
 
 export function getJob(jobId: string): Job | undefined {
   try {
+    ensureJobsDir();
     const filePath = join(JOBS_DIR, `${jobId}.json`);
     if (!existsSync(filePath)) {
       return undefined;
@@ -38,6 +43,7 @@ export function getJob(jobId: string): Job | undefined {
 
 export function getAllJobIds(): string[] {
   try {
+    ensureJobsDir();
     const files = require('fs').readdirSync(JOBS_DIR);
     return files
       .filter((file: string) => file.endsWith('.json'))

@@ -10,10 +10,22 @@ export default function HistoryPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [fingerprint, setFingerprint] = useState<string>('');
+  const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
 
   useEffect(() => {
-    // Only fetch jobs once we have fingerprint
+    // Always try to fetch jobs after a short delay, with or without fingerprint
+    const timer = setTimeout(() => {
+      setDebugInfo('Attempting to fetch jobs...');
+      fetchJobs();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    // Also fetch when we get fingerprint
     if (fingerprint) {
+      setDebugInfo(`Got fingerprint: ${fingerprint.substring(0, 50)}... - Fetching jobs...`);
       fetchJobs();
     }
   }, [fingerprint]);
@@ -23,12 +35,20 @@ export default function HistoryPage() {
       const headers: HeadersInit = {};
       if (fingerprint) {
         headers['x-fingerprint'] = fingerprint;
+        console.log('📤 Sending fingerprint to /api/jobs/list');
+      } else {
+        console.log('⚠️ No fingerprint available when fetching jobs');
       }
       
       const response = await fetch('/api/jobs/list', { headers });
       if (response.ok) {
         const data = await response.json();
+        console.log('📋 Jobs received:', data.jobs.length, 'jobs for current user');
+        setDebugInfo(`API Success: Received ${data.jobs.length} jobs for current user`);
         setJobs(data.jobs);
+      } else {
+        console.error('Failed to fetch jobs - response not ok:', response.status);
+        setDebugInfo(`API Error: ${response.status} - ${response.statusText}`);
       }
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
@@ -38,6 +58,8 @@ export default function HistoryPage() {
   };
 
   const handleFingerprintCollected = (fp: string) => {
+    console.log('🖱️ Fingerprint collected for history:', fp.substring(0, 100) + '...');
+    setDebugInfo(`Fingerprint collected: ${fp.length} chars`);
     setFingerprint(fp);
   };
 
@@ -77,6 +99,14 @@ export default function HistoryPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <FingerprintCollector onFingerprintCollected={handleFingerprintCollected} />
+      
+      {/* Debug Info - Remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm">
+          <strong>Debug:</strong> {debugInfo}
+        </div>
+      )}
+      
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-gray-900">
           Job History

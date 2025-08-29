@@ -53,6 +53,7 @@ export interface StorageProvider {
   getSignedUrl(key: string, expiresIn?: number): Promise<string>;
   deleteFile(key: string): Promise<void>;
   fileExists(key: string): Promise<boolean>;
+  listFiles(prefix: string): Promise<string[]>;
 }
 
 export interface GeneratePackRequest {

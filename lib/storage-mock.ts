@@ -30,6 +30,12 @@ export class MockStorage implements StorageProvider {
     return exists;
   }
 
+  async listFiles(prefix: string): Promise<string[]> {
+    const keys = Array.from(this.files.keys()).filter(key => key.startsWith(prefix));
+    console.log(`📂 Mock storage: Listed ${keys.length} files with prefix ${prefix}`);
+    return keys;
+  }
+
   // Método adicional para obtener archivos en el mock
   getFile(key: string): Buffer | undefined {
     return this.files.get(key);

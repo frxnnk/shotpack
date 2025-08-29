@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { StorageProvider } from '@/types';
 import { MockStorage } from './storage-mock';
@@ -80,6 +80,21 @@ class S3Storage implements StorageProvider {
         return false;
       }
       throw error;
+    }
+  }
+
+  async listFiles(prefix: string): Promise<string[]> {
+    try {
+      const command = new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: prefix,
+      });
+      
+      const response = await this.s3Client.send(command);
+      return response.Contents?.map(obj => obj.Key || '') || [];
+    } catch (error) {
+      console.error('Failed to list files:', error);
+      return [];
     }
   }
 }

@@ -51,11 +51,20 @@ export async function getJob(jobId: string): Promise<Job | undefined> {
 
 export async function getAllJobIds(): Promise<string[]> {
   try {
-    // For R2/S3, we can't list files directly in a simple way
-    // This function is mainly used for debugging, so we'll return empty array
-    // In production, you'd want to implement proper listing or use a database
-    console.log('getAllJobIds not implemented for R2 storage - consider using database for job listing');
-    return [];
+    const storage = getStorage();
+    const files = await storage.listFiles(JOBS_PREFIX);
+    
+    // Extract job IDs from file paths (remove prefix and .json extension)
+    const jobIds = files
+      .filter(file => file.endsWith('.json'))
+      .map(file => {
+        const filename = file.replace(JOBS_PREFIX, '').replace('.json', '');
+        return filename;
+      })
+      .filter(id => id.length > 0);
+    
+    console.log(`📂 Found ${jobIds.length} jobs in persistent storage`);
+    return jobIds;
   } catch (error) {
     console.error('Error reading jobs directory:', error);
     return [];

@@ -6,6 +6,7 @@ import { Job, StyleType } from '@/types';
 import { logger } from '@/lib/logger';
 import { STYLES } from '@/lib/images';
 import { setJob, getJob } from '@/lib/job-store-fs';
+import { jobs } from '@/lib/job-store';
 import { buildPrompts } from '@/lib/variations';
 import { getUserId, canUserGenerate, recordPackUsage } from '@/lib/user-tracking';
 
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
     };
 
     setJob(jobId, job);
+    jobs.set(jobId, job);
 
     // Record pack usage immediately when job is accepted (not when completed)
     console.log(`📊 Recording pack usage for job ${jobId} at start`);
@@ -80,6 +82,8 @@ export async function POST(request: NextRequest) {
         job.error = error.message;
         job.updatedAt = new Date();
         setJob(jobId, job);
+        jobs.set(jobId, job);
+    jobs.set(jobId, job);
       }
     });
 
@@ -98,6 +102,7 @@ async function processJob(jobId: string, file: File, style: StyleType, upscale: 
     job.progress = 5;
     job.updatedAt = new Date();
     setJob(jobId, job);
+    jobs.set(jobId, job);
 
     const storage = getStorage();
     const bytes = await file.arrayBuffer();
@@ -121,6 +126,7 @@ async function processJob(jobId: string, file: File, style: StyleType, upscale: 
     job.progress = 10;
     job.updatedAt = new Date();
     setJob(jobId, job);
+    jobs.set(jobId, job);
 
     const result = await generatePackServer(jobId, {
       originalUrl,

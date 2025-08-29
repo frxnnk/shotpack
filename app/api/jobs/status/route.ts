@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJob, getAllJobIds } from '@/lib/job-store-fs';
+import { jobs } from '@/lib/job-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,15 +10,21 @@ export async function GET(request: NextRequest) {
     const jobId = searchParams.get('jobId');
 
     console.log(`[STATUS] Checking job: ${jobId}`);
-    console.log(`[STATUS] Jobs available: ${getAllJobIds().join(', ')}`);
-
+    
     if (!jobId) {
       return NextResponse.json({ error: 'jobId is required' }, { status: 400 });
     }
 
-    const job = getJob(jobId);
+    // Try filesystem storage first, then in-memory storage
+    let job = getJob(jobId);
     if (!job) {
-      console.log(`[STATUS] Job ${jobId} not found`);
+      job = jobs.get(jobId);
+    }
+    
+    if (!job) {
+      console.log(`[STATUS] Job ${jobId} not found in filesystem or memory`);
+      console.log(`[STATUS] FS Jobs available: ${getAllJobIds().join(', ')}`);
+      console.log(`[STATUS] Memory Jobs available: ${Array.from(jobs.keys()).join(', ')}`);
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 

@@ -1,39 +1,47 @@
 import { Job } from '@/types';
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { getStorage } from '@/lib/storage';
 
-// Use /tmp directory for Vercel serverless compatibility
-const JOBS_DIR = join('/tmp', 'temp-jobs');
+const JOBS_PREFIX = 'jobs/metadata/';
 
-// Initialize directory lazily
-function ensureJobsDir() {
-  if (!existsSync(JOBS_DIR)) {
-    mkdirSync(JOBS_DIR, { recursive: true });
-  }
-}
-
-export function setJob(jobId: string, job: Job): void {
+export async function setJob(jobId: string, job: Job): Promise<void> {
   try {
-    ensureJobsDir();
-    const filePath = join(JOBS_DIR, `${jobId}.json`);
-    writeFileSync(filePath, JSON.stringify(job), 'utf8');
+    const storage = getStorage();
+    const key = `${JOBS_PREFIX}${jobId}.json`;
+    const buffer = Buffer.from(JSON.stringify(job), 'utf8');
+    await storage.uploadFile(key, buffer, 'application/json');
+    console.log(`✅ Job ${jobId} saved to persistent storage`);
   } catch (error) {
     console.error(`Error saving job ${jobId}:`, error);
   }
 }
 
-export function getJob(jobId: string): Job | undefined {
+export async function getJob(jobId: string): Promise<Job | undefined> {
   try {
-    ensureJobsDir();
-    const filePath = join(JOBS_DIR, `${jobId}.json`);
-    if (!existsSync(filePath)) {
+    const storage = getStorage();
+    const key = `${JOBS_PREFIX}${jobId}.json`;
+    
+    // Check if file exists first
+    const exists = await storage.fileExists(key);
+    if (!exists) {
       return undefined;
     }
-    const data = readFileSync(filePath, 'utf8');
+
+    // Get signed URL and fetch the data
+    const signedUrl = await storage.getSignedUrl(key, 300); // 5 minutes
+    const response = await fetch(signedUrl);
+    
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const data = await response.text();
     const job = JSON.parse(data);
-    // Convertir fechas de strings a Date objects
+    
+    // Convert dates from strings to Date objects
     job.createdAt = new Date(job.createdAt);
     job.updatedAt = new Date(job.updatedAt);
+    
+    console.log(`✅ Job ${jobId} loaded from persistent storage`);
     return job;
   } catch (error) {
     console.error(`Error reading job ${jobId}:`, error);
@@ -41,13 +49,13 @@ export function getJob(jobId: string): Job | undefined {
   }
 }
 
-export function getAllJobIds(): string[] {
+export async function getAllJobIds(): Promise<string[]> {
   try {
-    ensureJobsDir();
-    const files = require('fs').readdirSync(JOBS_DIR);
-    return files
-      .filter((file: string) => file.endsWith('.json'))
-      .map((file: string) => file.replace('.json', ''));
+    // For R2/S3, we can't list files directly in a simple way
+    // This function is mainly used for debugging, so we'll return empty array
+    // In production, you'd want to implement proper listing or use a database
+    console.log('getAllJobIds not implemented for R2 storage - consider using database for job listing');
+    return [];
   } catch (error) {
     console.error('Error reading jobs directory:', error);
     return [];

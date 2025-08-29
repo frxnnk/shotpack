@@ -5,11 +5,11 @@ import path from 'path';
 
 export async function POST() {
   try {
-    const jobIds = getAllJobIds();
+    const jobIds = await getAllJobIds();
     let cleanedCount = 0;
     
     for (const jobId of jobIds) {
-      const job = getJob(jobId);
+      const job = await getJob(jobId);
       
       // Remove jobs older than 7 days or with broken URLs
       if (job) {

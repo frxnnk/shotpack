@@ -15,15 +15,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'jobId is required' }, { status: 400 });
     }
 
-    // Try filesystem storage first, then in-memory storage
-    let job = getJob(jobId);
+    // Try persistent storage first, then in-memory storage as fallback
+    let job = await getJob(jobId);
     if (!job) {
       job = jobs.get(jobId);
     }
     
     if (!job) {
-      console.log(`[STATUS] Job ${jobId} not found in filesystem or memory`);
-      console.log(`[STATUS] FS Jobs available: ${getAllJobIds().join(', ')}`);
+      console.log(`[STATUS] Job ${jobId} not found in persistent storage or memory`);
       console.log(`[STATUS] Memory Jobs available: ${Array.from(jobs.keys()).join(', ')}`);
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }

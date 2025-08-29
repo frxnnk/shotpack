@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     };
 
-    setJob(jobId, job);
+    await setJob(jobId, job);
     jobs.set(jobId, job);
 
     // Record pack usage immediately when job is accepted (not when completed)
@@ -74,16 +74,15 @@ export async function POST(request: NextRequest) {
     recordPackUsage(request, clientFingerprint);
     console.log(`✅ Pack usage recorded for job ${jobId}`);
 
-    processJob(jobId, file, style, upscale, request, clientFingerprint).catch((error) => {
+    processJob(jobId, file, style, upscale, request, clientFingerprint).catch(async (error) => {
       logger.error(jobId, 'Job processing failed', error);
-      const job = getJob(jobId);
+      const job = await getJob(jobId) || jobs.get(jobId);
       if (job) {
         job.status = 'error';
         job.error = error.message;
         job.updatedAt = new Date();
-        setJob(jobId, job);
+        await setJob(jobId, job);
         jobs.set(jobId, job);
-    jobs.set(jobId, job);
       }
     });
 
@@ -95,13 +94,13 @@ export async function POST(request: NextRequest) {
 }
 
 async function processJob(jobId: string, file: File, style: StyleType, upscale: boolean, request: NextRequest, clientFingerprint: string) {
-  const job = getJob(jobId)!;
+  const job = await getJob(jobId) || jobs.get(jobId)!;
   
   try {
     job.status = 'running';
     job.progress = 5;
     job.updatedAt = new Date();
-    setJob(jobId, job);
+    await setJob(jobId, job);
     jobs.set(jobId, job);
 
     const storage = getStorage();
@@ -125,31 +124,33 @@ async function processJob(jobId: string, file: File, style: StyleType, upscale: 
     job.originalUrl = originalUrl;
     job.progress = 10;
     job.updatedAt = new Date();
-    setJob(jobId, job);
+    await setJob(jobId, job);
     jobs.set(jobId, job);
 
     const result = await generatePackServer(jobId, {
       originalUrl,
       style,
       upscale,
-      onProgress: (progress, currentImage) => {
-        const updatedJob = getJob(jobId)!;
+      onProgress: async (progress, currentImage) => {
+        const updatedJob = await getJob(jobId) || jobs.get(jobId)!;
         updatedJob.progress = progress;
         updatedJob.updatedAt = new Date();
         if (currentImage && !updatedJob.images.includes(currentImage)) {
           updatedJob.images.push(currentImage);
         }
-        setJob(jobId, updatedJob);
+        await setJob(jobId, updatedJob);
+        jobs.set(jobId, updatedJob);
       }
     });
 
-    const finalJob = getJob(jobId)!;
+    const finalJob = await getJob(jobId) || jobs.get(jobId)!;
     finalJob.status = 'done';
     finalJob.progress = 100;
     finalJob.images = result.images;
     finalJob.zipUrl = result.zipUrl;
     finalJob.updatedAt = new Date();
-    setJob(jobId, finalJob);
+    await setJob(jobId, finalJob);
+    jobs.set(jobId, finalJob);
 
     logger.info(jobId, 'Job completed successfully');
 
@@ -165,7 +166,7 @@ interface GeneratePackServerRequest {
   originalUrl: string;
   style: StyleType;
   upscale?: boolean;
-  onProgress?: (progress: number, currentImage?: string) => void;
+  onProgress?: (progress: number, currentImage?: string) => Promise<void>;
 }
 
 async function generatePackServer(jobId: string, request: GeneratePackServerRequest) {
@@ -183,7 +184,7 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
   const images: string[] = [];
 
   try {
-    onProgress?.(10);
+    await onProgress?.(10);
 
     const batchSize = 2;
     const totalImages = 6;
@@ -211,7 +212,7 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
             logger.info(jobId, `Image ${imageIndex} generated`, { imageUrl });
             
             const progress = 10 + (idx + 1) * (upscale ? 35 : 70) / totalImages;
-            onProgress?.(progress, imageUrl);
+            await onProgress?.(progress, imageUrl);
           })
           .catch((error) => {
             logger.error(jobId, `Failed to generate image ${imageIndex}`, error);
@@ -239,7 +240,7 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
 
     if (upscale && provider.upscale) {
       logger.info(jobId, 'Starting upscaling process');
-      onProgress?.(80);
+      await onProgress?.(80);
       
       const upscalePromises = validImages.map(async (imageUrl, index) => {
         try {
@@ -261,13 +262,13 @@ async function generatePackServer(jobId: string, request: GeneratePackServerRequ
       });
 
       finalImages = await Promise.all(upscalePromises);
-      onProgress?.(90);
+      await onProgress?.(90);
     }
 
     logger.info(jobId, 'Creating ZIP file');
     const zipUrl = await createZipFromImagesServer(jobId, finalImages);
     
-    onProgress?.(100);
+    await onProgress?.(100);
     logger.info(jobId, 'Pack generation completed', { zipUrl, imageCount: finalImages.length });
 
     return {

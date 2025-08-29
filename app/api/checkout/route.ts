@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateRobustFingerprint } from '@/lib/robust-fingerprint';
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json(
+        { error: 'Stripe not configured' },
+        { status: 503 }
+      );
+    }
+
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
     // Get client fingerprint data
     const body = await request.json().catch(() => ({}));
     const clientFingerprint = body.fingerprint;

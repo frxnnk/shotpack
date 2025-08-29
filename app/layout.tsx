@@ -7,6 +7,7 @@ import FingerprintCollector from '@/components/FingerprintCollector';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   title: "ShotPack — Product photo packs in seconds",
   description: "Turn one photo into 6 catalog-ready shots. True consistency, no props added.",
   icons: { 

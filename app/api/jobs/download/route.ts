@@ -3,6 +3,8 @@ import { getStorage } from '@/lib/storage';
 import { getJob } from '@/lib/job-store-fs';
 import { canUserGenerate } from '@/lib/user-tracking';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

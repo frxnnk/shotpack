@@ -17,10 +17,8 @@ export async function GET(request: NextRequest) {
     const allJobs = (await Promise.all(jobPromises))
       .filter(job => job !== undefined);
     
-    // Filter jobs by current user only, but include legacy jobs without userId for now
-    const userJobs = allJobs.filter(job => 
-      job.userId === userId || !job.userId // Show jobs without userId as fallback
-    );
+    // Filter jobs by current user only - strict filtering
+    const userJobs = allJobs.filter(job => job.userId === userId);
     
     // Sort by creation date (newest first)
     const sortedJobs = userJobs.sort((a, b) => 

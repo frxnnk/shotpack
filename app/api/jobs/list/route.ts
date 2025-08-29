@@ -25,8 +25,6 @@ export async function GET(request: NextRequest) {
       new Date(b!.createdAt).getTime() - new Date(a!.createdAt).getTime()
     );
 
-    console.log(`📋 User ${userId.substring(0, 8)}... has ${userJobs.length} jobs (total in system: ${allJobs.length})`);
-
     return NextResponse.json({ 
       jobs: sortedJobs,
       total: sortedJobs.length 

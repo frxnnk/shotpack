@@ -25,8 +25,18 @@ function ensureUsageDir() {
   }
 }
 
-// Generate user ID using robust fingerprinting
+// Generate user ID using persistent ID from client or fallback to fingerprinting
 export function getUserId(req: NextRequest, clientData?: string): string {
+  if (clientData) {
+    try {
+      const parsed = JSON.parse(clientData);
+      if (parsed.persistentId) {
+        return `pid_${parsed.persistentId}`; // Use persistent ID with prefix
+      }
+    } catch (e) {
+      // Fall back to robust fingerprinting
+    }
+  }
   return getRobustUserId(req, clientData);
 }
 

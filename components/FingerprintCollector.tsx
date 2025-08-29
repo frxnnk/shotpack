@@ -78,64 +78,58 @@ export default function FingerprintCollector({ onFingerprintCollected }: Fingerp
           fontsAvailable = 0;
         }
 
-        const fingerprint = {
-          // Screen & Display
-          screen: `${screen.width}x${screen.height}x${screen.colorDepth}`,
-          viewport: `${window.innerWidth}x${window.innerHeight}`,
-          pixelRatio: window.devicePixelRatio || 1,
-          
-          // Browser & System
-          userAgent: navigator.userAgent,
-          language: navigator.language,
-          languages: navigator.languages ? navigator.languages.slice(0, 3) : [],
-          platform: navigator.platform,
-          cookieEnabled: navigator.cookieEnabled,
-          doNotTrack: navigator.doNotTrack || 'unspecified',
-          
-          // Timezone & Location
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          timezoneOffset: new Date().getTimezoneOffset(),
-          
-          // Hardware
-          hardwareConcurrency: navigator.hardwareConcurrency || 0,
-          maxTouchPoints: navigator.maxTouchPoints || 0,
-          
-          // Canvas Fingerprint
-          canvas: ctx ? canvas.toDataURL() : 'unavailable',
-          
-          // Audio Context
-          audio: audioInfo,
-          
-          // WebGL
-          webgl: webglInfo,
-          
-          // Fonts
-          fontsAvailable,
-          
-          // Storage & Capabilities
-          localStorage: typeof Storage !== 'undefined',
-          sessionStorage: typeof Storage !== 'undefined',
-          indexedDB: !!window.indexedDB,
-          
-          // Media Devices
-          mediaDevices: navigator.mediaDevices ? 'available' : 'none',
-          
-          // Additional factors
-          cpuClass: (navigator as any).cpuClass || 'unknown',
-          connection: (navigator as any).connection?.effectiveType || 'unknown',
-          memory: (navigator as any).deviceMemory || 0,
-          
-          timestamp: Date.now()
-        };
+        // Check for existing persistent user ID first
+        let persistentId = localStorage.getItem('shotpack_user_id');
+        if (!persistentId) {
+          // Generate new persistent ID based on stable factors only
+          const fingerprint = {
+            // Screen & Display (stable)
+            screen: `${screen.width}x${screen.height}x${screen.colorDepth}`,
+            
+            // Browser & System (stable)
+            userAgent: navigator.userAgent,
+            language: navigator.language,
+            languages: navigator.languages ? navigator.languages.slice(0, 3) : [],
+            platform: navigator.platform,
+            
+            // Timezone (mostly stable)
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            
+            // Hardware (stable)
+            hardwareConcurrency: navigator.hardwareConcurrency || 0,
+            
+            // Canvas Fingerprint (stable)
+            canvas: ctx ? canvas.toDataURL() : 'unavailable',
+            
+            // WebGL (stable)
+            webgl: webglInfo,
+            
+            // Additional stable factors
+            cpuClass: (navigator as any).cpuClass || 'unknown',
+            memory: (navigator as any).deviceMemory || 0,
+            
+            // NO TIMESTAMP - this was making it inconsistent
+          };
 
-        const fingerprintString = JSON.stringify(fingerprint);
+          // Generate persistent ID from stable fingerprint
+          const fingerprintString = JSON.stringify(fingerprint);
+          persistentId = btoa(fingerprintString).substring(0, 16);
+          localStorage.setItem('shotpack_user_id', persistentId);
+        }
+
+        // Send the persistent ID (not the full fingerprint)
+        const stableData = JSON.stringify({
+          persistentId,
+          userAgent: navigator.userAgent,
+          timestamp: Date.now() // Only for request tracking, not ID generation
+        });
         
-        // Store fingerprint in sessionStorage for consistency during session
-        sessionStorage.setItem('shotpack_fp', fingerprintString);
+        // Store in sessionStorage for consistency during session
+        sessionStorage.setItem('shotpack_fp', stableData);
         
         // Send to server
         if (onFingerprintCollected) {
-          onFingerprintCollected(fingerprintString);
+          onFingerprintCollected(stableData);
         }
 
       } catch (error) {

@@ -1,0 +1,14 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="8" fill="#2563eb"/>
+  <g fill="white">
+    <!-- Camera lens -->
+    <circle cx="16" cy="14" r="6" stroke="white" stroke-width="1.5" fill="none"/>
+    <circle cx="16" cy="14" r="3" fill="white"/>
+    <!-- Grid overlay representing "pack" -->
+    <rect x="8" y="22" width="4" height="4" rx="0.5" fill="white" opacity="0.8"/>
+    <rect x="14" y="22" width="4" height="4" rx="0.5" fill="white" opacity="0.8"/>
+    <rect x="20" y="22" width="4" height="4" rx="0.5" fill="white" opacity="0.8"/>
+    <!-- Flash/spark -->
+    <path d="M24 8l1 2h2l-1.5 1.5L26 14l-2-1-2 1 0.5-2.5L21 10h2l1-2z" fill="white" opacity="0.9"/>
+  </g>
+</svg>

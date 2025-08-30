@@ -35,11 +35,16 @@ export default function HistoryPage() {
       const headers: HeadersInit = {};
       if (fingerprint) {
         headers['x-fingerprint'] = fingerprint;
+        console.log('🔍 PRIVACY DEBUG: Sending fingerprint:', fingerprint.substring(0, 100));
+      } else {
+        console.log('🚨 PRIVACY DEBUG: NO FINGERPRINT - THIS IS THE PROBLEM!');
       }
       
       const response = await fetch('/api/jobs/list', { headers });
       if (response.ok) {
         const data = await response.json();
+        console.log('🚨 PRIVACY DEBUG: Received jobs:', data.jobs.length);
+        console.log('🚨 PRIVACY DEBUG: Jobs data:', data);
         setJobs(data.jobs);
       } else {
         console.error('Failed to fetch jobs - response not ok:', response.status);
@@ -128,12 +133,25 @@ export default function HistoryPage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <FingerprintCollector onFingerprintCollected={handleFingerprintCollected} />
       
-      {/* Debug Info - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm">
-          <strong>Debug:</strong> {debugInfo}
-        </div>
-      )}
+      {/* CRITICAL PRIVACY DEBUG - ALWAYS SHOW */}
+      <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded text-sm">
+        <strong>🚨 CRITICAL PRIVACY DEBUG:</strong><br/>
+        <strong>Fingerprint:</strong> {fingerprint ? '✅ Present' : '❌ MISSING - THIS IS THE BUG!'}<br/>
+        <strong>Jobs showing:</strong> {jobs.length}<br/>
+        {fingerprint && (
+          <>
+            <strong>User ID:</strong> {(() => {
+              try {
+                const parsed = JSON.parse(fingerprint);
+                return parsed.persistentId ? `pid_${parsed.persistentId.substring(0, 10)}...` : 'INVALID';
+              } catch (e) {
+                return 'PARSE ERROR';
+              }
+            })()}<br/>
+          </>
+        )}
+        <strong>Debug info:</strong> {debugInfo}
+      </div>
       
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-gray-900">

@@ -8,7 +8,18 @@ export async function GET(request: NextRequest) {
   try {
     // Get user ID from fingerprint to filter jobs
     const clientFingerprint = request.headers.get('x-fingerprint');
-    const userId = getUserId(request, clientFingerprint || undefined);
+    
+    // EMERGENCY FIX: If no fingerprint, return empty list for security
+    if (!clientFingerprint) {
+      console.log('🚨 [PRIVACY] No fingerprint provided - returning empty list for security');
+      return NextResponse.json({ 
+        jobs: [],
+        total: 0,
+        error: 'Authentication required' 
+      });
+    }
+    
+    const userId = getUserId(request, clientFingerprint);
     
     // Get all job IDs and fetch their data
     const jobIds = await getAllJobIds();

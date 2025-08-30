@@ -28,13 +28,6 @@ export async function GET(request: NextRequest) {
     const allJobs = (await Promise.all(jobPromises))
       .filter(job => job !== undefined);
     
-    // CRITICAL PRIVACY CHECK - Log all job owners for debugging
-    console.log(`🔍 [PRIVACY] Current user: ${userId}`);
-    console.log(`📋 [PRIVACY] All jobs with owners:`);
-    allJobs.forEach((job, index) => {
-      console.log(`  ${index + 1}. Job ${job.id}: owner="${job.userId || 'none'}" created=${job.createdAt}`);
-    });
-    
     // Filter jobs by current user only - ULTRA STRICT filtering
     const userJobs = allJobs.filter(job => {
       // CRITICAL: Only show jobs that explicitly belong to this user
@@ -42,21 +35,8 @@ export async function GET(request: NextRequest) {
       const hasValidOwner = job.userId && typeof job.userId === 'string';
       const isCurrentUser = hasValidOwner && job.userId === userId;
       
-      if (!hasValidOwner) {
-        console.log(`🚫 [PRIVACY] Filtering out legacy job ${job.id} (no owner) - SECURITY MEASURE`);
-        return false;
-      }
-      
-      if (!isCurrentUser) {
-        console.log(`🚫 [PRIVACY] Filtering out job ${job.id} (owner: ${job.userId}) from user ${userId}`);
-        return false;
-      }
-      
-      console.log(`✅ [PRIVACY] Including job ${job.id} for user ${userId}`);
-      return true;
+      return isCurrentUser;
     });
-    
-    console.log(`🔍 [PRIVACY] Final result: ${userJobs.length} jobs for user ${userId}`);
     
     // Sort by creation date (newest first)
     const sortedJobs = userJobs.sort((a, b) => 

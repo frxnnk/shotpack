@@ -108,13 +108,34 @@ export default function FingerprintCollector({ onFingerprintCollected }: Fingerp
             cpuClass: (navigator as any).cpuClass || 'unknown',
             memory: (navigator as any).deviceMemory || 0,
             
+            // Font detection for uniqueness
+            fontsAvailable: fontsAvailable,
+            
+            // Add audio fingerprint for more uniqueness
+            audio: JSON.stringify(audioInfo),
+            
             // NO TIMESTAMP - this was making it inconsistent
           };
 
-          // Generate persistent ID from stable fingerprint
+          // Generate persistent ID from stable fingerprint with higher entropy
           const fingerprintString = JSON.stringify(fingerprint);
-          persistentId = btoa(fingerprintString).substring(0, 16);
+          
+          // Use a more secure hash to reduce collision chances
+          let hash = 0;
+          for (let i = 0; i < fingerprintString.length; i++) {
+            const char = fingerprintString.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+          }
+          
+          // Create longer, more unique ID
+          const baseId = btoa(fingerprintString).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+          persistentId = `${baseId}_${Math.abs(hash).toString(36)}`.substring(0, 24);
+          
+          console.log('🆔 Generated new persistent ID:', persistentId, 'from fingerprint length:', fingerprintString.length);
           localStorage.setItem('shotpack_user_id', persistentId);
+        } else {
+          console.log('🆔 Using existing persistent ID:', persistentId);
         }
 
         // Send the persistent ID (not the full fingerprint)

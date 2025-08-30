@@ -27,17 +27,30 @@ function ensureUsageDir() {
 
 // Generate user ID using persistent ID from client or fallback to fingerprinting
 export function getUserId(req: NextRequest, clientData?: string): string {
+  console.log(`🔍 [USER-ID] Generating user ID...`);
+  console.log(`🔍 [USER-ID] Client data: ${clientData ? clientData.substring(0, 100) + '...' : 'none'}`);
+  
   if (clientData) {
     try {
       const parsed = JSON.parse(clientData);
+      console.log(`🔍 [USER-ID] Parsed data:`, { 
+        hasPersistentId: !!parsed.persistentId,
+        persistentIdPreview: parsed.persistentId ? parsed.persistentId.substring(0, 10) + '...' : 'none'
+      });
+      
       if (parsed.persistentId) {
-        return `pid_${parsed.persistentId}`; // Use persistent ID with prefix
+        const userId = `pid_${parsed.persistentId}`;
+        console.log(`🔍 [USER-ID] Using persistent ID: ${userId.substring(0, 20)}...`);
+        return userId;
       }
     } catch (e) {
-      // Fall back to robust fingerprinting
+      console.log(`⚠️ [USER-ID] JSON parse failed, falling back to robust fingerprinting`);
     }
   }
-  return getRobustUserId(req, clientData);
+  
+  const robustId = getRobustUserId(req, clientData);
+  console.log(`🔍 [USER-ID] Using robust fingerprint ID: ${robustId.substring(0, 20)}...`);
+  return robustId;
 }
 
 // Load all usage data

@@ -10,31 +10,42 @@ export async function GET(request: NextRequest) {
     const clientFingerprint = request.headers.get('x-fingerprint');
     const userId = getUserId(request, clientFingerprint || undefined);
     
-    // DEBUG - log user identification info
-    console.log(`🔍 [LIST] Client fingerprint: ${clientFingerprint ? clientFingerprint.substring(0, 50) + '...' : 'none'}`);
-    console.log(`👤 [LIST] Current user ID: ${userId}`);
-    
     // Get all job IDs and fetch their data
     const jobIds = await getAllJobIds();
-    console.log(`📋 [LIST] Found ${jobIds.length} total job IDs in storage`);
     
     const jobPromises = jobIds.map(id => getJob(id));
     const allJobs = (await Promise.all(jobPromises))
       .filter(job => job !== undefined);
     
-    console.log(`📋 [LIST] Loaded ${allJobs.length} valid jobs from storage`);
+    // CRITICAL PRIVACY CHECK - Log all job owners for debugging
+    console.log(`🔍 [PRIVACY] Current user: ${userId}`);
+    console.log(`📋 [PRIVACY] All jobs with owners:`);
+    allJobs.forEach((job, index) => {
+      console.log(`  ${index + 1}. Job ${job.id}: owner="${job.userId || 'none'}" created=${job.createdAt}`);
+    });
     
-    // Show distribution of job owners for debugging
-    const ownerDistribution = allJobs.reduce((acc, job) => {
-      const owner = job.userId || 'no-owner';
-      acc[owner] = (acc[owner] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    console.log(`👥 [LIST] Job owners distribution:`, ownerDistribution);
+    // Filter jobs by current user only - ULTRA STRICT filtering
+    const userJobs = allJobs.filter(job => {
+      // CRITICAL: Only show jobs that explicitly belong to this user
+      // Jobs without userId (legacy) should NOT be shown to anyone for security
+      const hasValidOwner = job.userId && typeof job.userId === 'string';
+      const isCurrentUser = hasValidOwner && job.userId === userId;
+      
+      if (!hasValidOwner) {
+        console.log(`🚫 [PRIVACY] Filtering out legacy job ${job.id} (no owner) - SECURITY MEASURE`);
+        return false;
+      }
+      
+      if (!isCurrentUser) {
+        console.log(`🚫 [PRIVACY] Filtering out job ${job.id} (owner: ${job.userId}) from user ${userId}`);
+        return false;
+      }
+      
+      console.log(`✅ [PRIVACY] Including job ${job.id} for user ${userId}`);
+      return true;
+    });
     
-    // Filter jobs by current user only - strict filtering
-    const userJobs = allJobs.filter(job => job.userId === userId);
-    console.log(`🔍 [LIST] After filtering: ${userJobs.length} jobs for user ${userId.substring(0, 10)}...`);
+    console.log(`🔍 [PRIVACY] Final result: ${userJobs.length} jobs for user ${userId}`);
     
     // Sort by creation date (newest first)
     const sortedJobs = userJobs.sort((a, b) => 
@@ -44,12 +55,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       jobs: sortedJobs,
       total: sortedJobs.length,
-      debug: {
-        currentUser: userId.substring(0, 10) + '...',
+      // Add debug info to response so we can see in browser
+      debug: process.env.NODE_ENV === 'development' ? {
+        currentUserId: userId,
         totalJobs: allJobs.length,
-        userJobs: userJobs.length,
-        hasFingerprint: !!clientFingerprint
-      }
+        filteredJobs: userJobs.length,
+        jobOwners: allJobs.map(job => ({ id: job.id, owner: job.userId || 'none' }))
+      } : undefined
     });
   } catch (error) {
     console.error('List jobs error:', error);

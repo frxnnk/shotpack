@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    // Check ownership
-    if (job.userId && job.userId !== userId) {
+    // Check ownership - STRICT: Only allow if job explicitly belongs to this user
+    if (!job.userId || job.userId !== userId) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 

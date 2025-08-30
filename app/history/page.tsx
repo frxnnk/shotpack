@@ -35,32 +35,14 @@ export default function HistoryPage() {
       const headers: HeadersInit = {};
       if (fingerprint) {
         headers['x-fingerprint'] = fingerprint;
-        console.log('📤 Sending fingerprint to /api/jobs/list:', fingerprint.substring(0, 50) + '...');
-        
-        // Try to parse fingerprint to see what user ID it should generate
-        try {
-          const parsed = JSON.parse(fingerprint);
-          console.log('🔍 Fingerprint contains persistentId:', parsed.persistentId ? 'Yes: ' + parsed.persistentId : 'No');
-        } catch (e) {
-          console.log('⚠️ Could not parse fingerprint JSON');
-        }
-      } else {
-        console.log('⚠️ No fingerprint available when fetching jobs');
       }
       
       const response = await fetch('/api/jobs/list', { headers });
       if (response.ok) {
         const data = await response.json();
-        console.log('📋 Response data:', data);
-        console.log('📋 Jobs received:', data.jobs.length, 'jobs for current user');
-        if (data.debug) {
-          console.log('🐛 Debug info from API:', data.debug);
-        }
-        setDebugInfo(`API Success: Received ${data.jobs.length} jobs (${data.debug?.totalJobs || '?'} total)`);
         setJobs(data.jobs);
       } else {
         console.error('Failed to fetch jobs - response not ok:', response.status);
-        setDebugInfo(`API Error: ${response.status} - ${response.statusText}`);
       }
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
@@ -146,24 +128,12 @@ export default function HistoryPage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <FingerprintCollector onFingerprintCollected={handleFingerprintCollected} />
       
-      {/* Debug Info - ALWAYS show for now to diagnose privacy bug */}
-      <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded text-sm">
-        <strong>🚨 PRIVACY DEBUG:</strong> {debugInfo}
-        <br />
-        <strong>Fingerprint status:</strong> {fingerprint ? '✅ Present' : '❌ Missing'}
-        {fingerprint && (
-          <div className="mt-1">
-            <strong>User ID preview:</strong> {(() => {
-              try {
-                const parsed = JSON.parse(fingerprint);
-                return parsed.persistentId ? `pid_${parsed.persistentId}` : 'Invalid format';
-              } catch (e) {
-                return 'Parse error';
-              }
-            })()}
-          </div>
-        )}
-      </div>
+      {/* Debug Info - Remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm">
+          <strong>Debug:</strong> {debugInfo}
+        </div>
+      )}
       
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-gray-900">

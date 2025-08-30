@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
     
     let cleanedCount = 0;
     const stuckJobs = allJobs.filter(job => {
-      // Only clean user's own jobs or jobs without userId (legacy)
-      const isOwnJob = !job.userId || job.userId === userId;
+      // STRICT: Only clean jobs that explicitly belong to this user
+      const isOwnJob = job.userId === userId;
       const isStuck = job.status === 'running' && 
                      (now - new Date(job.updatedAt).getTime()) > timeoutMs;
       return isOwnJob && isStuck;

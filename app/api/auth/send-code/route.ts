@@ -71,7 +71,7 @@ async function sendEmail(email: string, code: string): Promise<boolean> {
     console.log(`📧 [AUTH] Sending verification code to ${email}`);
     
     const { data, error } = await resend.emails.send({
-      from: 'ShotPack <noreply@resend.dev>', // Using Resend's default domain for testing
+      from: 'ShotPack <noreply@shotpack.ai>',
       to: [email],
       subject: 'Your ShotPack verification code',
       html: `

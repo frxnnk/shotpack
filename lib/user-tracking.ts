@@ -15,7 +15,7 @@ interface UserUsage {
 }
 
 const USAGE_FILE = path.join('/tmp', 'temp-users/usage.json');
-const FREE_PACK_LIMIT = 1;
+const FREE_PACK_LIMIT = 10; // Increased temporarily for testing
 
 // Ensure directory exists
 function ensureUsageDir() {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllJobIds, getJob } from '@/lib/job-store-fs';
 import { canUserGenerate, getUserId } from '@/lib/user-tracking';
 import { getRobustUserId } from '@/lib/robust-fingerprint';
+import fs from 'fs';
+import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,38 +46,43 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    const userId = `email_${email.toLowerCase()}`;
+    const normalizedEmail = email.toLowerCase();
     
-    // Get all job IDs and fetch their data
-    const jobIds = await getAllJobIds();
+    // Load user's jobs from the email-specific file (created by associate API)
+    const JOBS_DIR = path.join('/tmp', 'temp-users/jobs');
+    const userJobsFile = path.join(JOBS_DIR, `${normalizedEmail}.json`);
     
-    const jobPromises = jobIds.map(id => getJob(id));
-    const allJobs = (await Promise.all(jobPromises))
-      .filter(job => job !== undefined);
+    let userJobs: any[] = [];
     
-    // Filter jobs by current user only - STRICT filtering
-    const userJobs = allJobs.filter(job => {
-      // CRITICAL: Only show jobs that explicitly belong to this user
-      const hasValidOwner = job.userId && typeof job.userId === 'string';
-      const isCurrentUser = hasValidOwner && job.userId === userId;
-      
-      return isCurrentUser;
-    });
-    
-    // Sort by creation date (newest first)
-    const sortedJobs = userJobs.sort((a, b) => 
-      new Date(b!.createdAt).getTime() - new Date(a!.createdAt).getTime()
-    );
+    if (fs.existsSync(userJobsFile)) {
+      try {
+        const data = fs.readFileSync(userJobsFile, 'utf-8');
+        const jobs = JSON.parse(data);
+        
+        // Convert date strings back to Date objects and sort
+        userJobs = jobs.map((job: any) => ({
+          ...job,
+          createdAt: new Date(job.createdAt),
+          updatedAt: new Date(job.updatedAt),
+          completedAt: job.completedAt ? new Date(job.completedAt) : undefined
+        })).sort((a: any, b: any) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        
+      } catch (error) {
+        console.error(`Error loading jobs for ${normalizedEmail}:`, error);
+      }
+    }
 
     return NextResponse.json({ 
-      jobs: sortedJobs,
-      total: sortedJobs.length,
+      jobs: userJobs,
+      total: userJobs.length,
       // Add debug info to response so we can see in browser
       debug: process.env.NODE_ENV === 'development' ? {
-        currentUserId: userId,
-        totalJobs: allJobs.length,
-        filteredJobs: userJobs.length,
-        jobOwners: allJobs.map(job => ({ id: job.id, owner: job.userId || 'none' }))
+        userEmail: normalizedEmail,
+        userJobsFile: userJobsFile,
+        fileExists: fs.existsSync(userJobsFile),
+        jobCount: userJobs.length
       } : undefined
     });
   } catch (error) {

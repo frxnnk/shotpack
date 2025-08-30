@@ -152,34 +152,6 @@ export default function HistoryPage() {
               Sign Out
             </button>
           )}
-          <button
-            onClick={() => handleJobAction('cleanup-stuck')}
-            className="px-3 py-2 text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 text-sm"
-          >
-            Fix Stuck Jobs
-          </button>
-          <button
-            onClick={async () => {
-              if (!auth.isAuthenticated) return;
-              
-              const headers: HeadersInit = { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${auth.token}`,
-                'x-user-email': auth.email || ''
-              };
-              
-              const response = await fetch('/api/jobs/cleanup', { 
-                method: 'POST',
-                headers 
-              });
-              if (response.ok) {
-                fetchJobs(); // Refresh the list
-              }
-            }}
-            className="px-3 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 text-sm"
-          >
-            Clean Up Old
-          </button>
           <Link
             href="/generate"
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

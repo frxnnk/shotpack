@@ -26,7 +26,12 @@ export default function HistoryPage() {
   }, [auth.loading, auth.isAuthenticated]);
 
   const fetchJobs = async () => {
-    if (!auth.isAuthenticated) return;
+    if (!auth.isAuthenticated) {
+      console.log('⚠️ [HISTORY] Cannot fetch jobs - user not authenticated');
+      return;
+    }
+    
+    console.log('📊 [HISTORY] Fetching jobs for user:', auth.email);
     
     try {
       const headers: HeadersInit = {
@@ -38,9 +43,10 @@ export default function HistoryPage() {
       const response = await fetch('/api/jobs/list', { headers });
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ [HISTORY] Received jobs:', data);
         setJobs(data.jobs);
       } else {
-        console.error('Failed to fetch jobs - response not ok:', response.status);
+        console.error('❌ [HISTORY] Failed to fetch jobs - response not ok:', response.status);
       }
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
@@ -51,7 +57,10 @@ export default function HistoryPage() {
 
   const handleAuthenticated = (email: string, token: string) => {
     auth.authenticate(email, token);
-    // Jobs will be fetched automatically via useEffect
+    // Explicitly fetch jobs after authentication to ensure they load immediately
+    setTimeout(() => {
+      fetchJobs();
+    }, 100);
   };
 
   const handleJobAction = async (action: 'cancel' | 'retry' | 'cleanup-stuck', jobId?: string) => {

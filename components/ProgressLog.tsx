@@ -17,6 +17,7 @@ export default function ProgressLog({ jobId, onComplete }: ProgressLogProps) {
   });
   const [error, setError] = useState<string | null>(null);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [hasCompletedOnce, setHasCompletedOnce] = useState(false);
 
   useEffect(() => {
     const pollStatus = async () => {
@@ -29,7 +30,9 @@ export default function ProgressLog({ jobId, onComplete }: ProgressLogProps) {
         const data: JobStatusResponse = await response.json();
         setStatus(data);
 
-        if (data.status === 'done' && onComplete) {
+        if (data.status === 'done' && onComplete && !hasCompletedOnce) {
+          console.log('🎯 [PROGRESS] Job completed for first time, calling onComplete');
+          setHasCompletedOnce(true);
           onComplete(data);
         } else if (data.status === 'error') {
           setError('Generation failed. Please try again.');

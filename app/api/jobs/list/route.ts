@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       // CRITICAL: Only show jobs that explicitly belong to this user
       // Jobs without userId (legacy) should NOT be shown to anyone for security
       const hasValidOwner = job.userId && typeof job.userId === 'string';
-      const isCurrentUser = hasValidOwner && possibleUserIds.includes(job.userId);
+      const isCurrentUser = hasValidOwner && job.userId && possibleUserIds.includes(job.userId);
       
       return isCurrentUser;
     });

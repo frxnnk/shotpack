@@ -28,6 +28,7 @@
     "playwright-core": "^1.55.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "resend": "^6.0.2",
     "sharp": "^0.32.0",
     "stripe": "^18.5.0",
     "tailwind-merge": "^2.0.0"

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllJobIds, getJob } from '@/lib/job-store-fs';
 import { canUserGenerate, getUserId } from '@/lib/user-tracking';
 import { getRobustUserId } from '@/lib/robust-fingerprint';
-import fs from 'fs';
-import path from 'path';
+import { getStorage } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,30 +47,44 @@ export async function GET(request: NextRequest) {
     
     const normalizedEmail = email.toLowerCase();
     
-    // Load user's jobs from the email-specific file (created by associate API)
-    const JOBS_DIR = path.join('/tmp', 'temp-users/jobs');
-    const userJobsFile = path.join(JOBS_DIR, `${normalizedEmail}.json`);
+    // Load user's jobs from R2 storage
+    const storage = getStorage();
+    const USER_HISTORY_PREFIX = 'users/history/';
+    const userHistoryKey = `${USER_HISTORY_PREFIX}${normalizedEmail}.json`;
     
     let userJobs: any[] = [];
     
-    if (fs.existsSync(userJobsFile)) {
-      try {
-        const data = fs.readFileSync(userJobsFile, 'utf-8');
-        const jobs = JSON.parse(data);
+    try {
+      // Check if file exists
+      const exists = await storage.fileExists(userHistoryKey);
+      console.log(`🔍 [LIST] History file exists for ${normalizedEmail}:`, exists);
+      
+      if (exists) {
+        // Get signed URL and fetch the data
+        const signedUrl = await storage.getSignedUrl(userHistoryKey, 300); // 5 minutes
+        const response = await fetch(signedUrl);
         
-        // Convert date strings back to Date objects and sort
-        userJobs = jobs.map((job: any) => ({
-          ...job,
-          createdAt: new Date(job.createdAt),
-          updatedAt: new Date(job.updatedAt),
-          completedAt: job.completedAt ? new Date(job.completedAt) : undefined
-        })).sort((a: any, b: any) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        
-      } catch (error) {
-        console.error(`Error loading jobs for ${normalizedEmail}:`, error);
+        if (response.ok) {
+          const data = await response.text();
+          const jobs = JSON.parse(data);
+          
+          // Convert date strings back to Date objects and sort
+          userJobs = jobs.map((job: any) => ({
+            ...job,
+            createdAt: new Date(job.createdAt),
+            updatedAt: new Date(job.updatedAt),
+            completedAt: job.completedAt ? new Date(job.completedAt) : undefined
+          })).sort((a: any, b: any) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          
+          console.log(`✅ [LIST] Loaded ${userJobs.length} jobs for ${normalizedEmail}`);
+        } else {
+          console.log(`⚠️ [LIST] Failed to fetch history for ${normalizedEmail}`);
+        }
       }
+    } catch (error) {
+      console.error(`❌ [LIST] Error loading jobs for ${normalizedEmail}:`, error);
     }
 
     return NextResponse.json({ 
@@ -80,8 +93,8 @@ export async function GET(request: NextRequest) {
       // Add debug info to response so we can see in browser
       debug: process.env.NODE_ENV === 'development' ? {
         userEmail: normalizedEmail,
-        userJobsFile: userJobsFile,
-        fileExists: fs.existsSync(userJobsFile),
+        userHistoryKey: userHistoryKey,
+        storageType: 'R2',
         jobCount: userJobs.length
       } : undefined
     });

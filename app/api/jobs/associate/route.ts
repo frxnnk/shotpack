@@ -1,52 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { getJob } from '@/lib/job-store-fs';
+import { getStorage } from '@/lib/storage';
 
-const JOBS_DIR = path.join('/tmp', 'temp-users/jobs');
+const USER_HISTORY_PREFIX = 'users/history/';
 
-// Ensure directory exists
-function ensureJobsDir() {
-  if (!fs.existsSync(JOBS_DIR)) {
-    fs.mkdirSync(JOBS_DIR, { recursive: true });
-  }
-}
-
-// Load user's jobs file
-function loadUserJobs(email: string): any[] {
+// Load user's jobs from R2 storage
+async function loadUserJobs(email: string): Promise<any[]> {
   const normalizedEmail = email.toLowerCase().trim();
-  const userJobsFile = path.join(JOBS_DIR, `${normalizedEmail}.json`);
-  
-  if (!fs.existsSync(userJobsFile)) {
-    return [];
-  }
+  const storage = getStorage();
+  const userHistoryKey = `${USER_HISTORY_PREFIX}${normalizedEmail}.json`;
   
   try {
-    const data = fs.readFileSync(userJobsFile, 'utf-8');
+    // Check if file exists
+    const exists = await storage.fileExists(userHistoryKey);
+    if (!exists) {
+      console.log(`📂 [ASSOCIATE] No history file found for ${normalizedEmail}`);
+      return [];
+    }
+
+    // Get signed URL and fetch the data
+    const signedUrl = await storage.getSignedUrl(userHistoryKey, 300); // 5 minutes
+    const response = await fetch(signedUrl);
+    
+    if (!response.ok) {
+      console.log(`⚠️ [ASSOCIATE] Failed to fetch history for ${normalizedEmail}`);
+      return [];
+    }
+
+    const data = await response.text();
     const jobs = JSON.parse(data);
     
     // Convert date strings back to Date objects
     return jobs.map((job: any) => ({
       ...job,
       createdAt: new Date(job.createdAt),
+      updatedAt: new Date(job.updatedAt),
       completedAt: job.completedAt ? new Date(job.completedAt) : undefined
     }));
   } catch (error) {
-    console.error(`Error loading jobs for ${normalizedEmail}:`, error);
+    console.error(`❌ [ASSOCIATE] Error loading jobs for ${normalizedEmail}:`, error);
     return [];
   }
 }
 
-// Save user's jobs file
-function saveUserJobs(email: string, jobs: any[]) {
-  ensureJobsDir();
+// Save user's jobs to R2 storage
+async function saveUserJobs(email: string, jobs: any[]): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
-  const userJobsFile = path.join(JOBS_DIR, `${normalizedEmail}.json`);
+  const storage = getStorage();
+  const userHistoryKey = `${USER_HISTORY_PREFIX}${normalizedEmail}.json`;
   
   try {
-    fs.writeFileSync(userJobsFile, JSON.stringify(jobs, null, 2));
+    const buffer = Buffer.from(JSON.stringify(jobs, null, 2), 'utf8');
+    await storage.uploadFile(userHistoryKey, buffer, 'application/json');
+    console.log(`✅ [ASSOCIATE] Saved history for ${normalizedEmail} to R2`);
   } catch (error) {
-    console.error(`Error saving jobs for ${normalizedEmail}:`, error);
+    console.error(`❌ [ASSOCIATE] Error saving jobs for ${normalizedEmail}:`, error);
     throw error;
   }
 }
@@ -69,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Load user's existing jobs
-    const userJobs = loadUserJobs(normalizedEmail);
+    const userJobs = await loadUserJobs(normalizedEmail);
     
     // Check if job is already associated with this user
     const existingJob = userJobs.find(j => j.id === jobId);
@@ -87,7 +95,7 @@ export async function POST(request: NextRequest) {
     };
     
     userJobs.unshift(jobToSave); // Add to beginning
-    saveUserJobs(normalizedEmail, userJobs);
+    await saveUserJobs(normalizedEmail, userJobs);
     
     console.log(`✅ [JOBS] Associated job ${jobId} with ${normalizedEmail}`);
     

@@ -63,6 +63,40 @@ export default function HistoryPage() {
     setFingerprint(fp);
   };
 
+  const handleJobAction = async (action: 'cancel' | 'retry' | 'cleanup-stuck', jobId?: string) => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (fingerprint) {
+        headers['x-fingerprint'] = fingerprint;
+      }
+
+      let endpoint = `/api/jobs/${action}`;
+      let body = {};
+      
+      if (jobId) {
+        body = { jobId };
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(data.message || 'Action completed successfully');
+        fetchJobs(); // Refresh the list
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Job action failed:', error);
+      alert('Action failed');
+    }
+  };
+
   const formatDate = (date: string | Date) => {
     return new Date(date).toLocaleDateString('en-US', {
       month: 'short',
@@ -113,6 +147,12 @@ export default function HistoryPage() {
         </h1>
         <div className="flex gap-3">
           <button
+            onClick={() => handleJobAction('cleanup-stuck')}
+            className="px-3 py-2 text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 text-sm"
+          >
+            Fix Stuck Jobs
+          </button>
+          <button
             onClick={async () => {
               const headers: HeadersInit = { 'Content-Type': 'application/json' };
               if (fingerprint) {
@@ -128,7 +168,7 @@ export default function HistoryPage() {
             }}
             className="px-3 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 text-sm"
           >
-            Clean Up
+            Clean Up Old
           </button>
           <Link
             href="/generate"
@@ -171,14 +211,33 @@ export default function HistoryPage() {
                     {formatDate(job.createdAt)}
                   </span>
                 </div>
-                {job.status === 'done' && (
-                  <Link
-                    href={`/result/${job.id}`}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                  >
-                    View Results →
-                  </Link>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* Job-specific actions */}
+                  {job.status === 'running' && (
+                    <button
+                      onClick={() => handleJobAction('cancel', job.id)}
+                      className="px-2 py-1 text-red-600 hover:text-red-700 text-xs border border-red-300 rounded hover:bg-red-50"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  {job.status === 'error' && (
+                    <button
+                      onClick={() => handleJobAction('retry', job.id)}
+                      className="px-2 py-1 text-green-600 hover:text-green-700 text-xs border border-green-300 rounded hover:bg-green-50"
+                    >
+                      Retry
+                    </button>
+                  )}
+                  {job.status === 'done' && (
+                    <Link
+                      href={`/result/${job.id}`}
+                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    >
+                      View Results →
+                    </Link>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-4">

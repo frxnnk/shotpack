@@ -198,13 +198,25 @@ export default function HistoryPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2 2v-5m16 0h-3m-13 0h3m-3 0h3m-3 0h3" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No jobs yet</h3>
-          <p className="text-gray-500 mb-6">Create your first photo pack to see it here</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No jobs found</h3>
+          <p className="text-gray-500 mb-4">
+            {fingerprint ? 
+              "Create your first photo pack to see it here" : 
+              "Loading your history..."
+            }
+          </p>
+          
+          {/* Help for users who might have lost their cache */}
+          <div className="mb-6 text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
+            <p className="mb-2">💡 <strong>Don't see your previous jobs?</strong></p>
+            <p>This can happen if you cleared your browser data. Your jobs are safe, but you might need to wait a moment for the system to recognize you.</p>
+          </div>
+          
           <Link
             href="/generate"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Get Started →
+            {fingerprint ? "Get Started →" : "Create New Pack →"}
           </Link>
         </div>
       ) : (

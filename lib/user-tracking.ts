@@ -25,11 +25,15 @@ function ensureUsageDir() {
   }
 }
 
-// Generate user ID using persistent ID from client or fallback to fingerprinting
+// Generate user ID using hybrid approach: persistent ID + fingerprinting fallback
 export function getUserId(req: NextRequest, clientData?: string): string {
   console.log(`🔍 [USER-ID] Generating user ID...`);
   console.log(`🔍 [USER-ID] Client data: ${clientData ? clientData.substring(0, 100) + '...' : 'none'}`);
   
+  let primaryUserId = '';
+  let fingerprintUserId = '';
+  
+  // Try to get persistent ID first (best case)
   if (clientData) {
     try {
       const parsed = JSON.parse(clientData);
@@ -39,18 +43,26 @@ export function getUserId(req: NextRequest, clientData?: string): string {
       });
       
       if (parsed.persistentId) {
-        const userId = `pid_${parsed.persistentId}`;
-        console.log(`🔍 [USER-ID] Using persistent ID: ${userId.substring(0, 20)}...`);
-        return userId;
+        primaryUserId = `pid_${parsed.persistentId}`;
+        console.log(`🔍 [USER-ID] Primary ID from localStorage: ${primaryUserId.substring(0, 20)}...`);
       }
     } catch (e) {
-      console.log(`⚠️ [USER-ID] JSON parse failed, falling back to robust fingerprinting`);
+      console.log(`⚠️ [USER-ID] JSON parse failed for persistent ID`);
     }
   }
   
-  const robustId = getRobustUserId(req, clientData);
-  console.log(`🔍 [USER-ID] Using robust fingerprint ID: ${robustId.substring(0, 20)}...`);
-  return robustId;
+  // Always generate fingerprint ID as fallback
+  fingerprintUserId = getRobustUserId(req, clientData);
+  console.log(`🔍 [USER-ID] Fingerprint fallback ID: ${fingerprintUserId.substring(0, 20)}...`);
+  
+  // If we have persistent ID, use it
+  if (primaryUserId) {
+    return primaryUserId;
+  }
+  
+  // Fallback to fingerprint ID
+  console.log(`🔄 [USER-ID] Using fingerprint fallback (no localStorage)`);
+  return fingerprintUserId;
 }
 
 // Load all usage data

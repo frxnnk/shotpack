@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllJobIds, getJob } from '@/lib/job-store-fs';
 import { canUserGenerate, getUserId } from '@/lib/user-tracking';
+import { getRobustUserId } from '@/lib/robust-fingerprint';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,22 @@ export async function GET(request: NextRequest) {
     
     const userId = getUserId(request, clientFingerprint);
     
+    // Generate both possible user IDs for this user (for cache-loss recovery)
+    let possibleUserIds = [userId];
+    if (clientFingerprint) {
+      try {
+        const parsed = JSON.parse(clientFingerprint);
+        if (parsed.persistentId) {
+          const pidUserId = `pid_${parsed.persistentId}`;
+          const fingerprintUserId = getRobustUserId(request, clientFingerprint);
+          possibleUserIds = [pidUserId, fingerprintUserId];
+          console.log(`🔍 [RECOVERY] Checking for jobs under IDs: ${possibleUserIds.map(id => id.substring(0, 15) + '...').join(', ')}`);
+        }
+      } catch (e) {
+        // If parsing fails, stick with single ID
+      }
+    }
+    
     // Get all job IDs and fetch their data
     const jobIds = await getAllJobIds();
     
@@ -28,12 +45,12 @@ export async function GET(request: NextRequest) {
     const allJobs = (await Promise.all(jobPromises))
       .filter(job => job !== undefined);
     
-    // Filter jobs by current user only - ULTRA STRICT filtering
+    // Filter jobs by current user only - ULTRA STRICT filtering with recovery support
     const userJobs = allJobs.filter(job => {
       // CRITICAL: Only show jobs that explicitly belong to this user
       // Jobs without userId (legacy) should NOT be shown to anyone for security
       const hasValidOwner = job.userId && typeof job.userId === 'string';
-      const isCurrentUser = hasValidOwner && job.userId === userId;
+      const isCurrentUser = hasValidOwner && possibleUserIds.includes(job.userId);
       
       return isCurrentUser;
     });

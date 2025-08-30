@@ -10,9 +10,8 @@ export async function GET(request: NextRequest) {
     // Get user ID from fingerprint to filter jobs
     const clientFingerprint = request.headers.get('x-fingerprint');
     
-    // EMERGENCY FIX: If no fingerprint, return empty list for security
+    // SECURITY: If no fingerprint, return empty list for security
     if (!clientFingerprint) {
-      console.log('🚨 [PRIVACY] No fingerprint provided - returning empty list for security');
       return NextResponse.json({ 
         jobs: [],
         total: 0,
@@ -31,7 +30,6 @@ export async function GET(request: NextRequest) {
           const pidUserId = `pid_${parsed.persistentId}`;
           const fingerprintUserId = getRobustUserId(request, clientFingerprint);
           possibleUserIds = [pidUserId, fingerprintUserId];
-          console.log(`🔍 [RECOVERY] Checking for jobs under IDs: ${possibleUserIds.map(id => id.substring(0, 15) + '...').join(', ')}`);
         }
       } catch (e) {
         // If parsing fails, stick with single ID

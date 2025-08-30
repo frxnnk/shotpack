@@ -132,10 +132,7 @@ export default function FingerprintCollector({ onFingerprintCollected }: Fingerp
           const baseId = btoa(fingerprintString).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
           persistentId = `${baseId}_${Math.abs(hash).toString(36)}`.substring(0, 24);
           
-          console.log('🆔 Generated new persistent ID:', persistentId, 'from fingerprint length:', fingerprintString.length);
           localStorage.setItem('shotpack_user_id', persistentId);
-        } else {
-          console.log('🆔 Using existing persistent ID:', persistentId);
         }
 
         // Send the persistent ID (not the full fingerprint)

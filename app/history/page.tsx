@@ -4,38 +4,36 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Job } from '@/types';
 import StorageImage from '@/components/StorageImage';
-import FingerprintCollector from '@/components/FingerprintCollector';
+import AuthModal from '@/components/AuthModal';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function HistoryPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fingerprint, setFingerprint] = useState<string>('');
-  const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const auth = useAuth();
 
   useEffect(() => {
-    // Always try to fetch jobs after a short delay, with or without fingerprint
-    const timer = setTimeout(() => {
-      setDebugInfo('Attempting to fetch jobs...');
-      fetchJobs();
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    // Also fetch when we get fingerprint
-    if (fingerprint) {
-      setDebugInfo(`Got fingerprint: ${fingerprint.substring(0, 50)}... - Fetching jobs...`);
-      fetchJobs();
+    // Check authentication and fetch jobs when auth state changes
+    if (!auth.loading) {
+      if (auth.isAuthenticated) {
+        fetchJobs();
+      } else {
+        setLoading(false);
+        // Don't show modal immediately, user might just be browsing
+      }
     }
-  }, [fingerprint]);
+  }, [auth.loading, auth.isAuthenticated]);
 
   const fetchJobs = async () => {
+    if (!auth.isAuthenticated) return;
+    
     try {
-      const headers: HeadersInit = {};
-      if (fingerprint) {
-        headers['x-fingerprint'] = fingerprint;
-      }
+      const headers: HeadersInit = {
+        'Authorization': `Bearer ${auth.token}`,
+        'Content-Type': 'application/json',
+        'x-user-email': auth.email || ''
+      };
       
       const response = await fetch('/api/jobs/list', { headers });
       if (response.ok) {
@@ -51,18 +49,20 @@ export default function HistoryPage() {
     }
   };
 
-  const handleFingerprintCollected = (fp: string) => {
-    console.log('🖱️ Fingerprint collected for history:', fp.substring(0, 100) + '...');
-    setDebugInfo(`Fingerprint collected: ${fp.length} chars`);
-    setFingerprint(fp);
+  const handleAuthenticated = (email: string, token: string) => {
+    auth.authenticate(email, token);
+    // Jobs will be fetched automatically via useEffect
   };
 
   const handleJobAction = async (action: 'cancel' | 'retry' | 'cleanup-stuck', jobId?: string) => {
+    if (!auth.isAuthenticated) return;
+    
     try {
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (fingerprint) {
-        headers['x-fingerprint'] = fingerprint;
-      }
+      const headers: HeadersInit = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`,
+        'x-user-email': auth.email || ''
+      };
 
       let endpoint = `/api/jobs/${action}`;
       let body = {};
@@ -126,20 +126,32 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <FingerprintCollector onFingerprintCollected={handleFingerprintCollected} />
-      
-      {/* Debug Info - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm">
-          <strong>Debug:</strong> {debugInfo}
-        </div>
-      )}
+      <AuthModal 
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthenticated={handleAuthenticated}
+      />
       
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Job History
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Job History
+          </h1>
+          {auth.isAuthenticated && (
+            <p className="text-sm text-gray-500 mt-1">
+              Signed in as {auth.email}
+            </p>
+          )}
+        </div>
         <div className="flex gap-3">
+          {auth.isAuthenticated && (
+            <button
+              onClick={auth.logout}
+              className="px-3 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 text-sm"
+            >
+              Sign Out
+            </button>
+          )}
           <button
             onClick={() => handleJobAction('cleanup-stuck')}
             className="px-3 py-2 text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 text-sm"
@@ -148,10 +160,14 @@ export default function HistoryPage() {
           </button>
           <button
             onClick={async () => {
-              const headers: HeadersInit = { 'Content-Type': 'application/json' };
-              if (fingerprint) {
-                headers['x-fingerprint'] = fingerprint;
-              }
+              if (!auth.isAuthenticated) return;
+              
+              const headers: HeadersInit = { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${auth.token}`,
+                'x-user-email': auth.email || ''
+              };
+              
               const response = await fetch('/api/jobs/cleanup', { 
                 method: 'POST',
                 headers 
@@ -180,26 +196,43 @@ export default function HistoryPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2 2v-5m16 0h-3m-13 0h3m-3 0h3m-3 0h3" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No jobs found</h3>
-          <p className="text-gray-500 mb-4">
-            {fingerprint ? 
-              "Create your first photo pack to see it here" : 
-              "Loading your history..."
-            }
-          </p>
           
-          {/* Help for users who might have lost their cache */}
-          <div className="mb-6 text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
-            <p className="mb-2">💡 <strong>Don't see your previous jobs?</strong></p>
-            <p>This can happen if you cleared your browser data. Your jobs are safe, but you might need to wait a moment for the system to recognize you.</p>
-          </div>
-          
-          <Link
-            href="/generate"
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            {fingerprint ? "Get Started →" : "Create New Pack →"}
-          </Link>
+          {!auth.isAuthenticated ? (
+            <>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Sign in to view your history</h3>
+              <p className="text-gray-500 mb-6">
+                Access your photo packs from any device with a simple email verification.
+              </p>
+              
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Sign In
+                </button>
+                <Link
+                  href="/generate"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Create Pack →
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No photo packs yet</h3>
+              <p className="text-gray-500 mb-6">
+                Welcome {auth.email}! Create your first photo pack to see it here.
+              </p>
+              <Link
+                href="/generate"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Create Your First Pack →
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

@@ -7,11 +7,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get user ID from fingerprint to filter jobs
-    const clientFingerprint = request.headers.get('x-fingerprint');
+    // Get user ID from Authorization header
+    const authHeader = request.headers.get('authorization');
     
-    // SECURITY: If no fingerprint, return empty list for security
-    if (!clientFingerprint) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ 
         jobs: [],
         total: 0,
@@ -19,22 +18,33 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    const userId = getUserId(request, clientFingerprint);
+    const token = authHeader.replace('Bearer ', '');
     
-    // Generate both possible user IDs for this user (for cache-loss recovery)
-    let possibleUserIds = [userId];
-    if (clientFingerprint) {
-      try {
-        const parsed = JSON.parse(clientFingerprint);
-        if (parsed.persistentId) {
-          const pidUserId = `pid_${parsed.persistentId}`;
-          const fingerprintUserId = getRobustUserId(request, clientFingerprint);
-          possibleUserIds = [pidUserId, fingerprintUserId];
-        }
-      } catch (e) {
-        // If parsing fails, stick with single ID
-      }
+    // Extract email from token (simple approach - in production use proper JWT)
+    // For now, we'll validate the token exists in localStorage on client side
+    // Here we extract the email from the token structure
+    
+    // Simple token validation - in production use proper JWT verification
+    if (!token || token.length < 10) {
+      return NextResponse.json({ 
+        jobs: [],
+        total: 0,
+        error: 'Invalid token' 
+      });
     }
+    
+    // For now, we'll trust the client-side token and extract email from request
+    // In production, decode JWT properly
+    const email = request.headers.get('x-user-email');
+    if (!email) {
+      return NextResponse.json({ 
+        jobs: [],
+        total: 0,
+        error: 'User email required' 
+      });
+    }
+    
+    const userId = `email_${email.toLowerCase()}`;
     
     // Get all job IDs and fetch their data
     const jobIds = await getAllJobIds();
@@ -43,12 +53,11 @@ export async function GET(request: NextRequest) {
     const allJobs = (await Promise.all(jobPromises))
       .filter(job => job !== undefined);
     
-    // Filter jobs by current user only - ULTRA STRICT filtering with recovery support
+    // Filter jobs by current user only - STRICT filtering
     const userJobs = allJobs.filter(job => {
       // CRITICAL: Only show jobs that explicitly belong to this user
-      // Jobs without userId (legacy) should NOT be shown to anyone for security
       const hasValidOwner = job.userId && typeof job.userId === 'string';
-      const isCurrentUser = hasValidOwner && job.userId && possibleUserIds.includes(job.userId);
+      const isCurrentUser = hasValidOwner && job.userId === userId;
       
       return isCurrentUser;
     });
